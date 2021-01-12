@@ -1,10 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { S3 } from 'aws-sdk';
+import { InjectS3 } from 'nestjs-s3';
 import { MinioClientService } from './minio-client.service';
 
 @Controller('minio-client')
 export class MinioClientController {
-    constructor(private _minioClientService: MinioClientService
+    constructor(private _minioClientService: MinioClientService,
+        @InjectS3() private readonly s3: S3,
+
                 ) { }
     @Get('get-all-buckets')
     getAllBucket() {
@@ -17,6 +21,33 @@ export class MinioClientController {
         console.log(file)
         console.log(data)
         return this._minioClientService.putOpject(file ,data)
+    }
+    
+    @Get('download/:bucket/:id')
+    async downloadFile(@Param('bucket') bucket ,@Param('id') id ,@Res() res){
+        try {
+            var params = {Bucket: bucket, Key: id};
+            this.s3.getObject(params, function (err, data) {
+                if (err) {
+                    res.status(500).send(err);
+                } else {
+                    res.send(data.Body)
+                }
+            });
+        }catch (e){
+            console.log(e)
+        }
+        
+      //return  res.send(await this._minioClientService.downloadFile(bucket,id))
+    }
+    @Get('e')
+    getOpject(){
+        return this._minioClientService.getOpject()
+    }
+
+    @Delete('remove-bucket')
+    removeBucket(@Body('bucketName') bucketName){
+        return this._minioClientService.removeBucket(bucketName)
     }
 
     @Delete('remove-opject')
