@@ -13,10 +13,8 @@ export class MinioClientController {
 
     @Post('upload-opject')
     @UseInterceptors(FileInterceptor('file'))
-    uploudFile(@UploadedFile() file, @Body() data) {
-        console.log(file)
-        console.log(data)
-        return this._minioClientService.putOpject(file, data)
+    uploudFile(@UploadedFile() file, @Body('Bucket') bucketName:string) {
+        return this._minioClientService.putOpject(file, bucketName)
     }
 
     @Get('download/:bucket/:id')
@@ -40,7 +38,7 @@ export class MinioClientController {
     }
 
     @Post('bucket-exists')
-    bucketExists(@Body('bucketName') bucketName: string) {
+    bucketExists(@Body() bucketName) {
         return this._minioClientService.bucketExists(bucketName)
     }
 }

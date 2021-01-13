@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { S3 } from 'aws-sdk';
 import { MinioService } from 'nestjs-minio-client';
 import { InjectS3 } from 'nestjs-s3';
@@ -22,23 +22,33 @@ export class MinioClientService {
     })
   }
 
-  async putOpject(opject, data) {
-    let bucketName = data.bucketName;
+  async putOpject(opject, bucketName) {
     let key = await new Date().getTime().toString();
     let params = { Bucket: bucketName, Key: key, Body: opject.buffer };
-    this.s3.putObject(params, function (err) {
-      if (err) {
-        console.log('Error occured in uploading', err)
-        throw BadRequestException
-      }
-    })
+    await this.uploud(params)
     let fileUrl = `localhost:3000/minio-client/download/${bucketName}/${key}`
     return fileUrl
   }
 
-  async downloadFile(bucket, id) {
+  uploud(params) {
+    return new Promise((resolve, reject) => {
+      return this.s3.putObject(params, (err, eTag) => {
+        if (err) {
+          let msg = { message: "The specified bucket does not exist kindly enter a valid name" }
+          return reject(err);
+        }
+        return resolve({
+          message: 'opject has been uploaded',
+          success: true
+        });
+      }
+      );
+    });
+  }
+
+ downloadFile(bucket, id) {
     let params = { Bucket: bucket, Key: id };
-    return await new Promise((resolve, reject) => {
+    return  new Promise((resolve, reject) => {
       this.s3.getObject(params, function (err, dataStream) {
         if (err) {
           return reject(err)
@@ -48,45 +58,97 @@ export class MinioClientService {
     })
   }
 
-  removeOpject(data) {
-    this.s3.deleteObject(data, function (err) {
+   removeOpject(data) {
+    return new Promise((resolve, reject) => {
+      this.s3.deleteObject(data, function (err) {
+        if (err) {
+          console.log('Unable to remove object', err)
+          return reject(err)
+        }
+        return resolve({
+          message:
+            "Bucket " +
+            data.Bucket +
+            " removed successfully ", success: true
+        });
+      })
+    })
+  }
+
+  async removeBucket(bucketName) {
+    return new Promise((resolve, reject) => {
+      this.s3.deleteBucket(bucketName, function (err) {
+        if (err) {
+          return reject(err)
+        }
+      })
+      return resolve({
+        message: `Bucket ${bucketName} removed successfully.`,
+        success: true
+      })
+    })
+  }
+
+   makeBucket(bucket) {
+    return new Promise((resolve, reject) => {
+      return this.s3.createBucket(bucket, (err) => {
+        if (err) {
+          if ((err as any).code === "BucketAlreadyOwnedByYou") {
+            return resolve({
+              message: "Bucket " + bucket.Bucket + " already exists ",
+              success: false
+            });
+          } else {
+            return reject(err);
+          }
+        }
+        return resolve({
+          message:
+            "Bucket " +
+            bucket +
+            " created successfully in " ,
+          success: true
+        });
+      });
+    });
+  }
+
+  bucketExists(bucketName) {
+    return new Promise((resolve, reject) => {
+    this.s3.getBucketLocation(bucketName, function (err, exists) {
       if (err) {
-        console.log('Unable to remove object', err)
-      }
-      console.log('the object Removed')
+      return reject(err)  
+          }
     })
+    return resolve({
+      message:`Bucket  ${bucketName} is exists.` 
+    })
+  })
   }
 
-  removeBucket(bucketName) {
-    this.s3.deleteBucket(bucketName, function (err) {
-      if (err) return console.log('unable to remove bucket.')
-    })
-    let msg = { message: 'Bucket removed successfully.' }
-    return msg
-  }
 
-  async makeBucket(bucketName) {
-    this.s3.createBucket(bucketName, function (err) {
-      if (err) {
-        console.log('Error creating bucket.', err)
-        throw BadRequestException
-      }
-    })
-    let msg = { message: "the bucket has been created" }
-    return msg
-  }
 
-  bucketExists(bucketName: string) {
-    this._minioService.client.bucketExists(bucketName, function (err, exists) {
-      if (err) {
-        console.log(err)
-        throw new BadRequestException
-      }
-    })
-    let msg = { message: 'Bucket exists.' }
-    return msg
 
-  }
+//   return await new Promise((resolve, reject) => {
+//     this.s3.createBucket(bucketName, function (err) {
+//       if (err) {
+//         console.log('Error creating bucket.', err)
+//         reject(err)
+//       }
+//       return resolve({
+//        message: "the bucket has been created" ,
+//        success:true
+//     })
+
+//   })
+// })
+  // this.s3.putObject(params, function (err) {
+  //   if (err) {
+  //     console.log('Error occured in uploading', err)
+  //     throw NotFoundException
+  //   }
+  // })
+
   // async getOpject(){
   //   this._minioService.client.presignedGetObject(this.bucket, '1610466628887', 24*60*60, function(err, presignedUrl) {
   //     if (err) return console.log(err)
